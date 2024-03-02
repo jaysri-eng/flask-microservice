@@ -27,7 +27,7 @@ def token_required(f):
     return decorated
 
 #mention the port number and assign app routes 
-port = int(os.environ.get('PORT',5001))
+port = int(os.environ.get('PORT',5000))
 @app.route("/")
 
 #define the home function
@@ -38,6 +38,23 @@ if __name__=="__main__":
 
 #function for getting the products details from the api
 BASE_URL = "https://dummyjson.com"
+
+with open('users.json', 'r') as f:
+    users = json.load(f)
+@app.route('/auth', methods=['POST'])
+def authenticate_user():
+    if request.headers['Content-Type'] != 'application/json':
+        return jsonify({'error': 'Unsupported Media Type'}), 415
+    username = request.json.get('username')
+    password = request.json.get('password')
+    for user in users:
+        if user['username'] == username and user['password'] == password:
+            token = jwt.encode({'user_id': user['id']}, app.config['SECRET_KEY'],algorithm="HS256")
+            response = make_response(jsonify({'message': 'Authentication successful'}))
+            response.set_cookie('token', token)
+            return response, 200
+    return jsonify({'error': 'Invalid username or password'}), 401
+
 @app.route('/products', methods=['GET'])
 @token_required
 def getProducts(user_id):
