@@ -1,3 +1,5 @@
 flask
 requests
 pyjwt
+mysql-connector-python
+pandas

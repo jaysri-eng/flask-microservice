@@ -1,4 +1,3 @@
-#import or add modules 
 import requests 
 from flask import Flask, jsonify, request, make_response
 import jwt
@@ -11,6 +10,7 @@ from mysql.connector import Error
 import pandas as pd
 import os
 from dotenv import load_dotenv
+from products import config
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,19 +19,19 @@ load_dotenv()
 DB_HOST = os.getenv("DB_HOST")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_DATABASE = os.getenv("DB_DATABASE")
+DB_CART_DATABASE = os.getenv("DB_CART_DATABASE")
 
 # Create the configuration dictionary
 config = {
     'host': DB_HOST,
     'user': DB_USER,
     'password': DB_PASSWORD,
-    'database': DB_DATABASE
+    'database': DB_CART_DATABASE
 }
 
 mydb = mysql.connector.connect(**config)
 cursor = mydb.cursor()
-
+cursor.execute("USE cart")
 #initiate flask app and assign JWT toke for authentication
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
@@ -53,20 +53,14 @@ def token_required(f):
 
 #mention the port number and assign app routes 
 port = int(os.environ.get('PORT',5000))
-@app.route("/")
+if __name__ == '__main__':
+    app.run(debug=True)
+# app.run(debug=True,host="0.0.0.0",port=port)
 
-#define the home function
-def home():
-    return "Welcome"
-if __name__=="__main__":
-    app.run(debug=True,host="0.0.0.0",port=port)
-
-#function for getting the products details from the api
-BASE_URL = "https://dummyjson.com"
 with open('users.json', 'r') as f:
     users = json.load(f)
 @app.route('/auth', methods=['POST'])
-def authenticate_user():
+def authenticate_user(): 
     if request.headers['Content-Type'] != 'application/json':
         return jsonify({'error': 'Unsupported Media Type'}), 415
     username = request.json.get('username')
@@ -79,58 +73,39 @@ def authenticate_user():
             return response, 200
     return jsonify({'error': 'Invalid username or password'}), 401
 
-#function to get particular product details to put into cart table 
-@app.route('/getSomeDetails', methods=['GET'])
-def get_products():
-    cursor.execute("SELECT id, title, price FROM products")
-    response = cursor.fetchall()
-    products = []
-    for product in response:
-        product_data = {
-            'id': product[0],
-            'title': product[1],
-            'price': product[2]
-        }
-        products.append(product_data)
+#api route and function to add item by fetching product items with id
+@app.route('/addProductToCart',methods=['POST'])
+def addToCart():
+    data = request.get_json()
+    id = data.get("id")
+    cursor.execute("USE products")
+    # Fetch product details from products database
+    cursor.execute("SELECT id, title, price FROM products WHERE id = %s", (id,))
+    product = cursor.fetchone()
 
-    return jsonify({'data': products}), 200 if products else 204
-    # products = cursor.fetchall()
-    # return jsonify([{'id': product[0], 'title': product[1], 'price': product[2]} for product in products])
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+    cursor.execute("USE cart")
+    # Insert product details into cart database
+    cursor.execute("INSERT INTO cart (id, item, price) VALUES (%s, %s, %s)",
+                   (product[0], product[1], product[2]))
+    mydb.commit()
+    return jsonify({'message': 'Product added to cart successfully'}), 201
 
-@app.route('/products', methods=['GET'])
-@token_required
-def getProducts(user_id):
-    headers = {'Authorization': f'Bearer {request.cookies.get("token")}'}
-    response = requests.get(f"{BASE_URL}/products", headers=headers)
-    if response.status_code!=200:
-        return jsonify({'error':response.json()['message']}), response.status_code
-    products=[]
-    for product in response.json()['products']:
-        product_data = {
-            'id': product['id'],
-            'title': product['title'],
-            'brand': product['brand'],
-            'price': product['price'],
-            'description': product['description']
-        }
-        products.append(product_data)
-    return jsonify({'data':products}),200 if products else 204
-
-@app.route('/addProducts',methods=['POST'])
-def addProduct():
+#test function and route to add items directly into cart 
+@app.route('/addItems',methods=['POST'])
+def addItems():
     data = request.get_json()
     id = data.get('id')
-    title = data.get('title')
-    brand = data.get('brand')
+    item = data.get('item')
     price = data.get('price')
-    descrip = data.get('descrip')
 
-    if not all([title, brand, price]):
+    if not all([id, item, price]):
         return jsonify({'error': 'Missing required fields'}), 400
 
     # Insert data into MySQL database
-    query = "INSERT INTO products (id, title, brand, price, descrip) VALUES (%s, %s, %s, %s, %s)"
-    values = (id, title, brand, price, descrip)
+    query = "INSERT INTO cart (id, item, price) VALUES (%s, %s, %s)"
+    values = (id, item, price)
     
     try:
         cursor.execute(query, values)
@@ -143,13 +118,13 @@ def addProduct():
         cursor.close()
         mydb.close()
 
-@app.route('/deleteProduct',methods=['POST'])
+@app.route('/deleteFromCart',methods=['POST'])
 def deleteProduct():
     data = request.get_json()
     id = data.get('id')
     if not id:
         return jsonify({'error': 'Missing product id'}), 400
-    query = "DELETE FROM products WHERE id = %s"
+    query = "DELETE FROM cart WHERE id = %s"
     values = (id,)
     try:
         cursor.execute(query, values)
