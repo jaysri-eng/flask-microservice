@@ -118,6 +118,13 @@ def getProducts(user_id):
 
 @app.route('/addProducts',methods=['POST'])
 def addProduct():
+    # Extract token from request headers
+    token = request.cookies.get('token')
+
+    # Validate token (e.g., check if it's present and valid)
+    if not token:
+        return jsonify({'error': 'Token is missing'}), 401
+
     data = request.get_json()
     id = data.get('id')
     title = data.get('title')
@@ -145,6 +152,13 @@ def addProduct():
 
 @app.route('/deleteProduct',methods=['POST'])
 def deleteProduct():
+    # Extract token from request headers
+    token = request.cookies.get('token')
+
+    # Validate token (e.g., check if it's present and valid)
+    if not token:
+        return jsonify({'error': 'Token is missing'}), 401
+
     data = request.get_json()
     id = data.get('id')
     if not id:

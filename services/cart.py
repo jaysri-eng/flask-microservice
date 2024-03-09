@@ -76,6 +76,13 @@ def authenticate_user():
 #api route and function to add item by fetching product items with id
 @app.route('/addProductToCart',methods=['POST'])
 def addToCart():
+    # Extract token from request headers
+    token = request.cookies.get('token')
+
+    # Validate token (e.g., check if it's present and valid)
+    if not token:
+        return jsonify({'error': 'Token is missing'}), 401
+
     data = request.get_json()
     id = data.get("id")
     cursor.execute("USE products")
@@ -95,6 +102,13 @@ def addToCart():
 #test function and route to add items directly into cart 
 @app.route('/addItems',methods=['POST'])
 def addItems():
+    # Extract token from request headers
+    token = request.cookies.get('token')
+
+    # Validate token (e.g., check if it's present and valid)
+    if not token:
+        return jsonify({'error': 'Token is missing'}), 401
+
     data = request.get_json()
     id = data.get('id')
     item = data.get('item')
@@ -120,6 +134,13 @@ def addItems():
 
 @app.route('/deleteFromCart',methods=['POST'])
 def deleteProduct():
+    # Extract token from request headers
+    token = request.cookies.get('token')
+
+    # Validate token (e.g., check if it's present and valid)
+    if not token:
+        return jsonify({'error': 'Token is missing'}), 401
+
     data = request.get_json()
     id = data.get('id')
     if not id:
